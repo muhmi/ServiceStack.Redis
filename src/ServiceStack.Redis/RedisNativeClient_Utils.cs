@@ -276,19 +276,15 @@ namespace ServiceStack.Redis
             if (currentBufferIndex > 0)
                 PushCurrentBuffer();
 
-            if (!Env.IsMono)
+            foreach (var segment in cmdBuffer)
             {
-                socket.Send(cmdBuffer); //Optimized for Windows
+                var buffer = segment.Array;
+				var sent = 0;
+				while (sent < segment.Count) {
+                	sent += socket.Send(buffer, segment.Offset + sent, segment.Count - sent, SocketFlags.None);
+				}
             }
-            else
-            {
-                //Sendling IList<ArraySegment> Throws 'Message to Large' SocketException in Mono
-                foreach (var segment in cmdBuffer)
-                {
-                    var buffer = segment.Array;
-                    socket.Send(buffer, segment.Offset, segment.Count, SocketFlags.None);
-                }
-            }
+           
             ResetSendBuffer();
         }
 
