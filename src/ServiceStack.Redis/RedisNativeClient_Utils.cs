@@ -276,15 +276,30 @@ namespace ServiceStack.Redis
             if (currentBufferIndex > 0)
                 PushCurrentBuffer();
 
-            foreach (var segment in cmdBuffer)
+            if (!Env.IsMono)
             {
-                var buffer = segment.Array;
-				var sent = 0;
-				while (sent < segment.Count) {
-                	sent += socket.Send(buffer, segment.Offset + sent, segment.Count - sent, SocketFlags.None);
-				}
+                socket.Send(cmdBuffer); //Optimized for Windows
             }
-           
+            else
+            {
+                //Sendling IList<ArraySegment> Throws 'Message to Large' SocketException in Mono
+                foreach (var segment in cmdBuffer)
+                {
+
+					// At least on mono 2.x it is necessary to check the return value, even though the API states that for
+					// blocking scokets you should not need to.
+
+                    var buffer = segment.Array;
+					var sent = 0;
+					while (sent < segment.Count) {
+                    	sent += socket.Send(buffer, segment.Offset + sent, segment.Count - sent, SocketFlags.None);
+						if (!socket.Connected) {
+							break;
+						}
+					}
+
+                }
+            }
             ResetSendBuffer();
         }
 
